@@ -1,0 +1,44 @@
+name: npm-publish
+on:
+  push:
+    branches:
+      - master # Change this to your default branch
+jobs:
+  npm-publish:
+    name: npm-publish
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@master
+    - name: Set up Node.js
+      uses: actions/setup-node@master
+      with:
+        node-version: 10.0.0
+    - name: Get Version
+      id: versionInfo
+      run: |
+        echo ::set-output name=pkgname::$(jq .name package.json | tr -d '"')
+        echo ::set-output name=version::$(jq .version package.json | tr -d '"')
+    - name: Publish if version has been updated
+      uses: pascalgn/npm-publish-action@3d228dd9d6c7851b8d24b532dc8d15d74f615043
+      env: # More info about the environment variables in the README
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Leave this as is, it's automatically generated
+        NPM_AUTH_TOKEN: ${{ secrets.NPM_AUTH_TOKEN }} 
+    - name: setOutput
+      id: setoutput
+      if: ${{ success() }}
+      run: echo ::set-output name=success::yes
+    - name: setFinalOutput
+      if: ${{ always() }}
+      id: setfinal
+      run: if [[ '${{steps.setoutput.outputs.success}}' == 'yes' ]]; then echo ::set-output name=finalmessage::'Node package ${{steps.versionInfo.outputs.pkgname}}@v${{steps.versionInfo.outputs.version}} was successfully published' ; else echo ::set-output name=finalmessage::'Publishing of node package failed for ${{steps.versionInfo.outputs.pkgname}}@v${{steps.versionInfo.outputs.version}}. Please check the logs for error.' ; fi
+    - name: Push Notification
+      if: ${{ always() }}
+      uses: ProtocolRedefined/Dynamic-Template-Engine@v1
+      with:
+        repoName : ProtocolRedefined/Ecosystem-Template-Repository
+        branchName : showcase
+        data: '{ "message": "${{ steps.setfinal.outputs.finalmessage }}" }'
+        templateType: HandleBars
+        sourceType: PublishReport
+        ClientType: Teams
